@@ -32,7 +32,9 @@ export default function HostRoomPage() {
   }, [roomId]);
 
   useEffect(() => {
-    const joinUrl = `${window.location.origin}/join?roomId=${roomId}`;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || window.location.origin;
+    const joinUrl = `${baseUrl}/join?roomId=${roomId}`;
     QRCode.toDataURL(joinUrl).then(setQrUrl).catch(() => setQrUrl(null));
   }, [roomId]);
 

@@ -80,3 +80,6 @@ Socket.IO requires long-lived WebSocket connections which are unreliable in Verc
 Vercel serverless functions are stateless across requests, so in-memory rooms will be lost between requests. Use Upstash Redis for production persistence:
 - `UPSTASH_REDIS_REST_URL`
 - `UPSTASH_REDIS_REST_TOKEN`
+
+## QR Code Base URL
+Set `NEXT_PUBLIC_APP_URL` to your production domain so the host QR code always points to the correct public URL.
