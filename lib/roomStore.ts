@@ -60,15 +60,25 @@ function sanitizeRoom(room: GameRoom, role: "host" | "player"): GameRoom {
 
 async function getRoomInternal(roomId: string): Promise<GameRoom | null> {
   if (useRedis && redis) {
-    const room = await redis.get<GameRoom>(`${ROOM_PREFIX}${roomId}`);
-    return room ?? null;
+    try {
+      const room = await redis.get<GameRoom>(`${ROOM_PREFIX}${roomId}`);
+      return room ?? null;
+    } catch (error) {
+      console.error("Upstash Redis get failed", error);
+      throw new Error("Upstash Redis error. Check UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.");
+    }
   }
   return rooms.get(roomId) || null;
 }
 
 async function setRoomInternal(room: GameRoom) {
   if (useRedis && redis) {
-    await redis.set(`${ROOM_PREFIX}${room.id}`, room);
+    try {
+      await redis.set(`${ROOM_PREFIX}${room.id}`, room);
+    } catch (error) {
+      console.error("Upstash Redis set failed", error);
+      throw new Error("Upstash Redis error. Check UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.");
+    }
     return;
   }
   rooms.set(room.id, room);

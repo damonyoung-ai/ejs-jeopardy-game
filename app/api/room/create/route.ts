@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ roomId: room.id, hostId });
   } catch (error: unknown) {
+    console.error("createRoom error", error);
     const message = error instanceof Error ? error.message : "Unable to create room.";
     return NextResponse.json({ error: message }, { status: 400 });
   }
