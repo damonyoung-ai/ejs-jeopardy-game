@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { joinRoom, publishRoomState } from "@/lib/roomStore";
 
-export async function POST(req: NextRequest, { params }: { params: { roomId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ roomId: string }> }) {
   try {
-    const roomId = params.roomId.toUpperCase();
+    const { roomId: rawRoomId } = await params;
+    const roomId = rawRoomId.toUpperCase();
     const body = await req.json();
     const name = String(body?.name || "").trim();
     if (!name) {

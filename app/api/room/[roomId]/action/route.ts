@@ -28,9 +28,10 @@ const hostActions = new Set([
   "host:endGame"
 ]);
 
-export async function POST(req: NextRequest, { params }: { params: { roomId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ roomId: string }> }) {
   try {
-    const roomId = params.roomId.toUpperCase();
+    const { roomId: rawRoomId } = await params;
+    const roomId = rawRoomId.toUpperCase();
     const body = await req.json();
     const action = String(body?.action || "");
     const room = getRoom(roomId);
