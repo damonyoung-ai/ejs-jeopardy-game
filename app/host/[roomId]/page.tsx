@@ -172,7 +172,7 @@ export default function HostRoomPage() {
                   <button
                     className="btn-primary w-full"
                     onClick={() => handleAction("host:openAnswers")}
-                    disabled={room.currentClue.phase !== "clue"}
+                    disabled={room.currentClue.phase !== "clue" || room.autoOpenAnswers}
                   >
                     Open Answers
                   </button>

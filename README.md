@@ -73,6 +73,12 @@ After reveal, the host can trigger Double or Nothing for 10 seconds:
 - Correct players choose to double their earned points or keep them.
 - Incorrect players choose to risk losing the clue value or take no penalty.
 
+## Optional Auto-Open
+Hosts can enable “Auto-open answers” to open the answer window immediately when a clue is selected, reducing host actions and Redis commands.
+
+## Optional Auto-Finalize
+Hosts can enable “Auto-finalize” to automatically finalize a clue after reveal (or after the twist window), reducing host actions and Redis commands.
+
 ## Notes on Realtime
 Socket.IO requires long-lived WebSocket connections which are unreliable in Vercel serverless functions. This app uses Pusher for production-safe realtime while keeping the server authoritative and the game state in memory. You can swap the in-memory store for Redis later using `lib/roomStore.ts`.
 

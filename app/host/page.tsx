@@ -9,6 +9,8 @@ export default function HostSetupPage() {
   const [playerLimit, setPlayerLimit] = useState(12);
   const [questionSetJson, setQuestionSetJson] = useState("");
   const [twistDefault, setTwistDefault] = useState(true);
+  const [autoOpenAnswers, setAutoOpenAnswers] = useState(true);
+  const [autoFinalizeClue, setAutoFinalizeClue] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -25,7 +27,9 @@ export default function HostSetupPage() {
           title: title || undefined,
           playerLimit,
           questionSetJson: questionSetJson.trim() || undefined,
-          twistDefault
+          twistDefault,
+          autoOpenAnswers,
+          autoFinalizeClue
         })
       });
       const data = await res.json();
@@ -80,6 +84,22 @@ export default function HostSetupPage() {
             onChange={(e) => setTwistDefault(e.target.checked)}
           />
           Twist enabled by default
+        </label>
+        <label className="flex items-center gap-3 text-white/80">
+          <input
+            type="checkbox"
+            checked={autoOpenAnswers}
+            onChange={(e) => setAutoOpenAnswers(e.target.checked)}
+          />
+          Auto-open answers when clue is selected
+        </label>
+        <label className="flex items-center gap-3 text-white/80">
+          <input
+            type="checkbox"
+            checked={autoFinalizeClue}
+            onChange={(e) => setAutoFinalizeClue(e.target.checked)}
+          />
+          Auto-finalize after reveal (or twist window)
         </label>
         {error && <p className="text-red-300 text-sm">{error}</p>}
         <button className="btn-primary w-full" disabled={loading} type="submit">

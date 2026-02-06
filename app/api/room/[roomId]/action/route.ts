@@ -90,7 +90,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ roo
         return NextResponse.json({ error: "Unknown action." }, { status: 400 });
     }
 
-    if (action !== "player:submitAnswer") {
+    const shouldPublish =
+      action === "host:startGame" ||
+      action === "host:selectClue" ||
+      action === "host:openAnswers" ||
+      action === "host:lockAnswers" ||
+      action === "host:revealCorrect" ||
+      action === "host:triggerTwist" ||
+      action === "host:finalizeClue" ||
+      action === "host:endGame";
+
+    if (shouldPublish) {
       await publishRoomState(roomId);
     }
     return NextResponse.json({ ok: true });

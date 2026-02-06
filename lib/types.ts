@@ -49,6 +49,8 @@ export type GameRoom = {
   status: GameStatus;
   title?: string;
   playerLimit: number;
+  autoOpenAnswers: boolean;
+  autoFinalizeClue: boolean;
   players: Player[];
   board: Category[];
   currentClue: CurrentClue;

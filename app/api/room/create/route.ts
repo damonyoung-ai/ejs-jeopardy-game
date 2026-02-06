@@ -13,13 +13,17 @@ export async function POST(req: NextRequest) {
       : 12;
     const questionSetJson = body?.questionSetJson ? String(body.questionSetJson) : undefined;
     const twistDefault = Boolean(body?.twistDefault ?? true);
+    const autoOpenAnswers = Boolean(body?.autoOpenAnswers ?? true);
+    const autoFinalizeClue = Boolean(body?.autoFinalizeClue ?? false);
 
     const room = await createRoom({
       hostId,
       title,
       playerLimit,
       questionSetJson,
-      twistDefault
+      twistDefault,
+      autoOpenAnswers,
+      autoFinalizeClue
     });
 
     await publishRoomState(room.id);

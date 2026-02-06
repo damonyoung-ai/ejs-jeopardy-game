@@ -4,6 +4,19 @@ import { useEffect, useState } from "react";
 import { GameRoom } from "@/lib/types";
 import { getPusherClient } from "@/lib/pusherClient";
 
+function mergeRoom(prev: GameRoom | null, next: Partial<GameRoom>): GameRoom {
+  if (!prev) return next as GameRoom;
+  return {
+    ...prev,
+    ...next,
+    board: next.board ?? prev.board,
+    players: next.players ?? prev.players,
+    answers: next.answers ?? prev.answers,
+    results: next.results ?? prev.results,
+    currentClue: next.currentClue ?? prev.currentClue
+  };
+}
+
 export function useRoomState(roomId: string, role: "host" | "player") {
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -13,25 +26,60 @@ export function useRoomState(roomId: string, role: "host" | "player") {
     let active = true;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+    const cacheKey = `jeopardy-room-cache-${roomId}-${role}`;
+
+    function hydrateFromCache() {
+      try {
+        const raw = localStorage.getItem(cacheKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as { ts: number; room: GameRoom };
+        if (Date.now() - parsed.ts > 60_000) return;
+        if (active) setRoom(parsed.room);
+      } catch {
+        // ignore cache errors
+      }
+    }
+
     async function load() {
       try {
         const res = await fetch(`/api/room/${roomId}/state?role=${role}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || "Unable to load room.");
-        if (active) setRoom(data);
+        if (active) {
+          setRoom((prev) => {
+            const merged = mergeRoom(prev, data);
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), room: merged }));
+            } catch {
+              // ignore cache errors
+            }
+            return merged;
+          });
+        }
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : "Unable to load room.");
       }
     }
 
+    hydrateFromCache();
     load();
 
     let channel: { bind: (event: string, cb: (data: any) => void) => void; unbind_all: () => void } | null = null;
     try {
       const pusher = getPusherClient();
       channel = pusher.subscribe(`room-${roomId}-${role}`);
-      channel.bind("room:state", (data: GameRoom) => {
-        if (active) setRoom(data);
+      channel.bind("room:state", (data: Partial<GameRoom>) => {
+        if (active) {
+          setRoom((prev) => {
+            const merged = mergeRoom(prev, data);
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), room: merged }));
+            } catch {
+              // ignore cache errors
+            }
+            return merged;
+          });
+        }
       });
       channel.bind("countdown:update", (data: { secondsLeft: number }) => {
         if (active) setCountdown(data.secondsLeft);

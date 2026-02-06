@@ -18,10 +18,12 @@ const rooms = new Map<string, GameRoom>();
 const countdownTimers = new Map<string, NodeJS.Timeout>();
 const pendingAnswers = new Map<string, Map<string, number>>();
 const answerFlushTimers = new Map<string, NodeJS.Timeout>();
+const autoFinalizeTimers = new Map<string, NodeJS.Timeout>();
 const ROOM_PREFIX = "room:";
 const ANSWERS_PREFIX = "room:answers:";
 const RESULTS_PREFIX = "room:results:";
 const SCORES_PREFIX = "room:scores:";
+const ROOM_TTL_SECONDS = 60 * 60 * 4;
 
 function createEmptyCurrentClue(): CurrentClue {
   return { clueId: null, phase: "idle" };
@@ -71,8 +73,8 @@ async function assembleRoomState(roomId: string): Promise<GameRoom | null> {
 
   const [scores, answers, results] = await Promise.all([
     getScores(roomId),
-    getAnswers(roomId),
-    getResults(roomId)
+    getAnswers(roomId, room.currentClue.clueId),
+    getResults(roomId, room.currentClue.clueId)
   ]);
 
   const players = room.players.map((player) => ({
@@ -104,7 +106,7 @@ async function getRoomInternal(roomId: string): Promise<GameRoom | null> {
 async function setRoomInternal(room: GameRoom) {
   if (useRedis && redis) {
     try {
-      await redis.set(`${ROOM_PREFIX}${room.id}`, room);
+      await redis.set(`${ROOM_PREFIX}${room.id}`, room, { ex: ROOM_TTL_SECONDS });
     } catch (error) {
       console.error("Upstash Redis set failed", error);
       throw new Error("Upstash Redis error. Check UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.");
@@ -114,9 +116,17 @@ async function setRoomInternal(room: GameRoom) {
   rooms.set(room.id, room);
 }
 
-async function getAnswers(roomId: string): Promise<AnswerMap> {
-  if (!useRedis || !redis) return {};
-  const raw = await redis.hgetall<Record<string, string>>(`${ANSWERS_PREFIX}${roomId}`);
+function answersKey(roomId: string, clueId: string) {
+  return `${ANSWERS_PREFIX}${roomId}:${clueId}`;
+}
+
+function resultsKey(roomId: string, clueId: string) {
+  return `${RESULTS_PREFIX}${roomId}:${clueId}`;
+}
+
+async function getAnswers(roomId: string, clueId: string | null): Promise<AnswerMap> {
+  if (!useRedis || !redis || !clueId) return {};
+  const raw = await redis.hgetall<Record<string, string>>(answersKey(roomId, clueId));
   if (!raw) return {};
   const answers: AnswerMap = {};
   Object.entries(raw).forEach(([playerId, value]) => {
@@ -126,23 +136,16 @@ async function getAnswers(roomId: string): Promise<AnswerMap> {
   return answers;
 }
 
-async function setAnswers(roomId: string, answers: AnswerMap) {
-  if (!useRedis || !redis) return;
-  if (Object.keys(answers).length === 0) {
-    await redis.del(`${ANSWERS_PREFIX}${roomId}`);
-    return;
-  }
-  await redis.hset(`${ANSWERS_PREFIX}${roomId}`, answers);
+async function setAnswers(roomId: string, clueId: string | null, answers: AnswerMap) {
+  if (!useRedis || !redis || !clueId) return;
+  if (Object.keys(answers).length === 0) return;
+  await redis.hset(answersKey(roomId, clueId), answers);
+  await redis.expire(answersKey(roomId, clueId), ROOM_TTL_SECONDS);
 }
 
-async function clearAnswers(roomId: string) {
-  if (!useRedis || !redis) return;
-  await redis.del(`${ANSWERS_PREFIX}${roomId}`);
-}
-
-async function getResults(roomId: string): Promise<ResultsMap> {
-  if (!useRedis || !redis) return {};
-  const raw = await redis.get<string>(`${RESULTS_PREFIX}${roomId}`);
+async function getResults(roomId: string, clueId: string | null): Promise<ResultsMap> {
+  if (!useRedis || !redis || !clueId) return {};
+  const raw = await redis.get<string>(resultsKey(roomId, clueId));
   if (!raw) return {};
   try {
     return JSON.parse(raw) as ResultsMap;
@@ -151,13 +154,10 @@ async function getResults(roomId: string): Promise<ResultsMap> {
   }
 }
 
-async function setResults(roomId: string, results: ResultsMap) {
-  if (!useRedis || !redis) return;
-  if (Object.keys(results).length === 0) {
-    await redis.del(`${RESULTS_PREFIX}${roomId}`);
-    return;
-  }
-  await redis.set(`${RESULTS_PREFIX}${roomId}`, JSON.stringify(results));
+async function setResults(roomId: string, clueId: string | null, results: ResultsMap) {
+  if (!useRedis || !redis || !clueId) return;
+  if (Object.keys(results).length === 0) return;
+  await redis.set(resultsKey(roomId, clueId), JSON.stringify(results), { ex: ROOM_TTL_SECONDS });
 }
 
 async function getScores(roomId: string): Promise<Record<string, number>> {
@@ -200,7 +200,7 @@ async function flushPendingAnswers(roomId: string) {
   pendingAnswers.delete(roomId);
   await setRoomInternal(room);
   if (useRedis && redis) {
-    await setAnswers(roomId, room.answers);
+    await setAnswers(roomId, room.currentClue.clueId, room.answers);
   }
   await publishRoomState(roomId);
 }
@@ -224,6 +224,8 @@ export async function createRoom(params: {
   playerLimit: number;
   questionSetJson?: string;
   twistDefault: boolean;
+  autoOpenAnswers: boolean;
+  autoFinalizeClue: boolean;
 }): Promise<GameRoom> {
   let board: Category[];
   if (params.questionSetJson) {
@@ -239,6 +241,8 @@ export async function createRoom(params: {
     status: "lobby",
     title: params.title,
     playerLimit: params.playerLimit,
+    autoOpenAnswers: params.autoOpenAnswers,
+    autoFinalizeClue: params.autoFinalizeClue,
     players: [],
     board,
     currentClue: createEmptyCurrentClue(),
@@ -250,8 +254,7 @@ export async function createRoom(params: {
   await setRoomInternal(room);
   if (useRedis && redis) {
     await setScores(room.id, {});
-    await setResults(room.id, {});
-    await clearAnswers(room.id);
+    await redis.expire(`${SCORES_PREFIX}${room.id}`, ROOM_TTL_SECONDS);
   }
   return room;
 }
@@ -315,17 +318,13 @@ export async function selectClue(roomId: string, clueId: string) {
   if (clue.used) throw new Error("Clue already used.");
   room.currentClue = {
     clueId,
-    phase: "clue",
+    phase: room.autoOpenAnswers ? "open" : "clue",
     openedAt: Date.now(),
     twistEnabled: room.twistDefault
   };
   room.answers = {};
   room.results = {};
   await setRoomInternal(room);
-  if (useRedis && redis) {
-    await clearAnswers(roomId);
-    await setResults(roomId, {});
-  }
 }
 
 export async function openAnswers(roomId: string) {
@@ -347,7 +346,9 @@ export async function submitAnswer(roomId: string, playerId: string, choiceIndex
     throw new Error("Invalid choice.");
   }
   if (useRedis && redis) {
-    await redis.hset(`${ANSWERS_PREFIX}${roomId}`, { [playerId]: choiceIndex });
+    if (!room.currentClue.clueId) throw new Error("No clue selected.");
+    await redis.hset(answersKey(roomId, room.currentClue.clueId), { [playerId]: choiceIndex });
+    await redis.expire(answersKey(roomId, room.currentClue.clueId), ROOM_TTL_SECONDS);
     return;
   }
   queueAnswer(roomId, playerId, choiceIndex);
@@ -375,7 +376,7 @@ export async function revealCorrect(roomId: string) {
   if (!clue) throw new Error("Clue not found.");
 
   if (useRedis && redis) {
-    room.answers = await getAnswers(roomId);
+    room.answers = await getAnswers(roomId, clueId);
   }
 
   const results: ResultsMap = {};
@@ -385,10 +386,8 @@ export async function revealCorrect(roomId: string) {
     const answer = room.answers[player.id];
     const correct = answer === clue.correctIndex;
     const delta = correct ? clue.value : 0;
-    if (useRedis && redis) {
-      scores[player.id] = (scores[player.id] ?? 0) + delta;
-    } else if (delta !== 0) {
-      player.score += delta;
+    if (!useRedis || !redis) {
+      if (delta !== 0) player.score += delta;
     }
     results[player.id] = { correct, delta };
   });
@@ -398,8 +397,12 @@ export async function revealCorrect(roomId: string) {
   room.currentClue.revealAt = Date.now();
   await setRoomInternal(room);
   if (useRedis && redis) {
-    await setScores(roomId, scores);
-    await setResults(roomId, results);
+    await setResults(roomId, clueId, results);
+  }
+
+  if (room.autoFinalizeClue) {
+    const delay = room.currentClue.twistEnabled ? 5000 : 3000;
+    scheduleAutoFinalize(roomId, delay);
   }
 }
 
@@ -422,6 +425,9 @@ export async function triggerTwist(roomId: string) {
   await setRoomInternal(room);
 
   startTwistCountdown(roomId, deadline);
+  if (room.autoFinalizeClue) {
+    scheduleAutoFinalize(roomId, Math.max(0, deadline - Date.now()) + 500);
+  }
 }
 
 export async function submitTwistChoice(
@@ -439,7 +445,7 @@ export async function submitTwistChoice(
   if (!player) throw new Error("Player not found.");
 
   if (useRedis && redis) {
-    room.results = await getResults(roomId);
+    room.results = await getResults(roomId, room.currentClue.clueId);
   }
 
   const clueId = room.currentClue.clueId;
@@ -463,7 +469,7 @@ export async function submitTwistChoice(
 
   await setRoomInternal(room);
   if (useRedis && redis) {
-    await setResults(roomId, room.results);
+    await setResults(roomId, room.currentClue.clueId, room.results);
   }
 }
 
@@ -480,16 +486,18 @@ export async function finalizeClue(roomId: string) {
   if (!clue) throw new Error("Clue not found.");
 
   if (useRedis && redis) {
-    room.results = await getResults(roomId);
+    room.results = await getResults(roomId, clueId);
   }
 
   const scores = useRedis && redis ? await getScores(roomId) : {};
 
   Object.entries(room.results).forEach(([playerId, result]) => {
-    if (result.twistDelta && result.twistDelta !== 0) {
-      if (useRedis && redis) {
-        scores[playerId] = (scores[playerId] ?? 0) + result.twistDelta;
-      } else {
+    if (useRedis && redis) {
+      const baseDelta = result.delta ?? 0;
+      const twistDelta = result.twistDelta ?? 0;
+      scores[playerId] = (scores[playerId] ?? 0) + baseDelta + twistDelta;
+    } else {
+      if (result.twistDelta && result.twistDelta !== 0) {
         const player = room.players.find((entry) => entry.id === playerId);
         if (player) player.score += result.twistDelta;
       }
@@ -504,10 +512,10 @@ export async function finalizeClue(roomId: string) {
   await setRoomInternal(room);
   if (useRedis && redis) {
     await setScores(roomId, scores);
-    await setResults(roomId, {});
-    await clearAnswers(roomId);
+    await redis.expire(`${SCORES_PREFIX}${roomId}`, ROOM_TTL_SECONDS);
   }
   clearCountdown(roomId);
+  clearAutoFinalize(roomId);
 }
 
 export async function endGame(roomId: string) {
@@ -516,6 +524,7 @@ export async function endGame(roomId: string) {
   room.status = "finished";
   room.currentClue.phase = "final";
   await setRoomInternal(room);
+  clearAutoFinalize(roomId);
 }
 
 export async function publishRoomState(roomId: string) {
@@ -525,8 +534,41 @@ export async function publishRoomState(roomId: string) {
   const hostChannel = `room-${roomId}-host`;
   const playerChannel = `room-${roomId}-player`;
 
-  await pusher.trigger(hostChannel, "room:state", room);
-  await pusher.trigger(playerChannel, "room:state", sanitizeRoom(room, "player"));
+  const revealPhase =
+    room.currentClue.phase === "revealed" ||
+    room.currentClue.phase === "twist" ||
+    room.currentClue.phase === "final";
+
+  const minimalHost: Partial<GameRoom> = {
+    id: room.id,
+    status: room.status,
+    title: room.title,
+    playerLimit: room.playerLimit,
+    autoOpenAnswers: room.autoOpenAnswers,
+    autoFinalizeClue: room.autoFinalizeClue,
+    players: room.players,
+    currentClue: room.currentClue,
+    answers: room.answers,
+    results: room.results,
+    twistDefault: room.twistDefault
+  };
+  const minimalPlayer: Partial<GameRoom> = {
+    id: room.id,
+    status: room.status,
+    title: room.title,
+    playerLimit: room.playerLimit,
+    autoOpenAnswers: room.autoOpenAnswers,
+    autoFinalizeClue: room.autoFinalizeClue,
+    players: room.players,
+    currentClue: room.currentClue,
+    board: revealPhase ? sanitizeBoardForPlayers(room) : undefined,
+    answers: {},
+    results: {},
+    twistDefault: room.twistDefault
+  };
+
+  await pusher.trigger(hostChannel, "room:state", minimalHost);
+  await pusher.trigger(playerChannel, "room:state", minimalPlayer);
 }
 
 export function publishCountdown(roomId: string, secondsLeft: number) {
@@ -552,6 +594,28 @@ function clearCountdown(roomId: string) {
   const timer = countdownTimers.get(roomId);
   if (timer) clearInterval(timer);
   countdownTimers.delete(roomId);
+}
+
+function scheduleAutoFinalize(roomId: string, delayMs: number) {
+  clearAutoFinalize(roomId);
+  const timer = setTimeout(async () => {
+    try {
+      const room = await getRoomInternal(roomId);
+      if (!room) return;
+      if (!(room.currentClue.phase === "revealed" || room.currentClue.phase === "twist")) return;
+      await finalizeClue(roomId);
+      await publishRoomState(roomId);
+    } catch (error) {
+      console.error("autoFinalize error", error);
+    }
+  }, delayMs);
+  autoFinalizeTimers.set(roomId, timer);
+}
+
+function clearAutoFinalize(roomId: string) {
+  const timer = autoFinalizeTimers.get(roomId);
+  if (timer) clearTimeout(timer);
+  autoFinalizeTimers.delete(roomId);
 }
 
 export async function getRoomStateForRole(roomId: string, role: "host" | "player") {
