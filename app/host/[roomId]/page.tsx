@@ -25,6 +25,7 @@ export default function HostRoomPage() {
   const roomId = String(params.roomId || "").toUpperCase();
   const { room, countdown, error } = useRoomState(roomId, "host");
   const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [joinUrl, setJoinUrl] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const hostId = useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -34,8 +35,9 @@ export default function HostRoomPage() {
   useEffect(() => {
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || window.location.origin;
-    const joinUrl = `${baseUrl}/join?roomId=${roomId}`;
-    QRCode.toDataURL(joinUrl).then(setQrUrl).catch(() => setQrUrl(null));
+    const newJoinUrl = `${baseUrl}/join?roomId=${roomId}`;
+    setJoinUrl(newJoinUrl);
+    QRCode.toDataURL(newJoinUrl).then(setQrUrl).catch(() => setQrUrl(null));
   }, [roomId]);
 
   async function handleAction(action: string, payload: Record<string, unknown> = {}) {
@@ -73,11 +75,26 @@ export default function HostRoomPage() {
           <h1 className="font-display text-3xl text-jeopardyGold">{room.title || "Host Dashboard"}</h1>
           <p className="text-white/70">Game ID: <span className="font-semibold text-white">{room.id}</span></p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
           <button className="btn-secondary" onClick={() => navigator.clipboard.writeText(room.id)}>
             Copy Game ID
           </button>
-          {qrUrl && <img src={qrUrl} alt="QR code" className="h-20 w-20 rounded bg-white p-1" />}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {qrUrl && <img src={qrUrl} alt="QR code" className="h-20 w-20 rounded bg-white p-1" />}
+            {joinUrl && (
+              <div className="flex items-center gap-2">
+                <code className="text-xs text-white/80 bg-white/10 px-2 py-1 rounded max-w-[220px] truncate">
+                  {joinUrl}
+                </code>
+                <button
+                  className="btn-secondary text-xs"
+                  onClick={() => navigator.clipboard.writeText(joinUrl)}
+                >
+                  Copy Link
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
