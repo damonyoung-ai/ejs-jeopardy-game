@@ -546,6 +546,7 @@ export async function publishRoomState(roomId: string) {
     playerLimit: room.playerLimit,
     autoOpenAnswers: room.autoOpenAnswers,
     autoFinalizeClue: room.autoFinalizeClue,
+    board: room.board,
     players: room.players,
     currentClue: room.currentClue,
     answers: room.answers,
