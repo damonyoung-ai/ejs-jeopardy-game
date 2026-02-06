@@ -11,6 +11,7 @@ export function useRoomState(roomId: string, role: "host" | "player") {
 
   useEffect(() => {
     let active = true;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     async function load() {
       try {
@@ -37,10 +38,13 @@ export function useRoomState(roomId: string, role: "host" | "player") {
       });
     } catch (err) {
       if (active) setError(err instanceof Error ? err.message : "Realtime unavailable.");
+      // Throttled polling fallback to reduce Redis reads.
+      pollTimer = setInterval(load, 15000);
     }
 
     return () => {
       active = false;
+      if (pollTimer) clearInterval(pollTimer);
       if (channel) {
         channel.unbind_all();
         try {

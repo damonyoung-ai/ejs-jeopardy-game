@@ -90,7 +90,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ roo
         return NextResponse.json({ error: "Unknown action." }, { status: 400 });
     }
 
-    await publishRoomState(roomId);
+    if (action !== "player:submitAnswer") {
+      await publishRoomState(roomId);
+    }
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unable to process action.";

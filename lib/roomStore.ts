@@ -16,6 +16,8 @@ const redis = useRedis ? Redis.fromEnv() : null;
 
 const rooms = new Map<string, GameRoom>();
 const countdownTimers = new Map<string, NodeJS.Timeout>();
+const pendingAnswers = new Map<string, Map<string, number>>();
+const answerFlushTimers = new Map<string, NodeJS.Timeout>();
 const ROOM_PREFIX = "room:";
 
 function createEmptyCurrentClue(): CurrentClue {
@@ -82,6 +84,36 @@ async function setRoomInternal(room: GameRoom) {
     return;
   }
   rooms.set(room.id, room);
+}
+
+function queueAnswer(roomId: string, playerId: string, choiceIndex: number) {
+  const roomQueue = pendingAnswers.get(roomId) ?? new Map<string, number>();
+  roomQueue.set(playerId, choiceIndex);
+  pendingAnswers.set(roomId, roomQueue);
+}
+
+async function flushPendingAnswers(roomId: string) {
+  const queue = pendingAnswers.get(roomId);
+  if (!queue || queue.size === 0) return;
+  const room = await getRoomInternal(roomId);
+  if (!room) return;
+
+  queue.forEach((choiceIndex, playerId) => {
+    room.answers[playerId] = choiceIndex;
+  });
+
+  pendingAnswers.delete(roomId);
+  await setRoomInternal(room);
+  await publishRoomState(roomId);
+}
+
+function scheduleAnswerFlush(roomId: string, delayMs = 750) {
+  if (answerFlushTimers.has(roomId)) return;
+  const timer = setTimeout(async () => {
+    answerFlushTimers.delete(roomId);
+    await flushPendingAnswers(roomId);
+  }, delayMs);
+  answerFlushTimers.set(roomId, timer);
 }
 
 export async function getRoom(roomId: string) {
@@ -202,11 +234,12 @@ export async function submitAnswer(roomId: string, playerId: string, choiceIndex
   if (!Number.isInteger(choiceIndex) || choiceIndex < 0 || choiceIndex > 3) {
     throw new Error("Invalid choice.");
   }
-  room.answers[playerId] = choiceIndex;
-  await setRoomInternal(room);
+  queueAnswer(roomId, playerId, choiceIndex);
+  scheduleAnswerFlush(roomId);
 }
 
 export async function lockAnswers(roomId: string) {
+  await flushPendingAnswers(roomId);
   const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (room.currentClue.phase !== "open") throw new Error("Answers are not open.");
@@ -216,6 +249,7 @@ export async function lockAnswers(roomId: string) {
 }
 
 export async function revealCorrect(roomId: string) {
+  await flushPendingAnswers(roomId);
   const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (room.currentClue.phase !== "locked") throw new Error("Answers not locked.");
@@ -299,6 +333,7 @@ export async function submitTwistChoice(
 }
 
 export async function finalizeClue(roomId: string) {
+  await flushPendingAnswers(roomId);
   const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (!(room.currentClue.phase === "revealed" || room.currentClue.phase === "twist")) {
@@ -320,6 +355,7 @@ export async function finalizeClue(roomId: string) {
   room.currentClue = createEmptyCurrentClue();
   room.answers = {};
   room.results = {};
+  pendingAnswers.delete(roomId);
   await setRoomInternal(room);
   clearCountdown(roomId);
 }
