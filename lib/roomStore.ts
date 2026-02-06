@@ -9,9 +9,14 @@ import {
   ResultsMap
 } from "@/lib/types";
 import { getPusherServer } from "@/lib/pusherServer";
+import { Redis } from "@upstash/redis";
+
+const useRedis = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+const redis = useRedis ? Redis.fromEnv() : null;
 
 const rooms = new Map<string, GameRoom>();
 const countdownTimers = new Map<string, NodeJS.Timeout>();
+const ROOM_PREFIX = "room:";
 
 function createEmptyCurrentClue(): CurrentClue {
   return { clueId: null, phase: "idle" };
@@ -30,7 +35,10 @@ function sanitizeBoardForPlayers(room: GameRoom): Category[] {
     title: category.title,
     clues: category.clues.map((clue) => {
       const isCurrent = room.currentClue.clueId === clue.id;
-      const reveal = room.currentClue.phase === "revealed" || room.currentClue.phase === "twist" || room.currentClue.phase === "final";
+      const reveal =
+        room.currentClue.phase === "revealed" ||
+        room.currentClue.phase === "twist" ||
+        room.currentClue.phase === "final";
       return {
         ...clue,
         correctIndex: isCurrent && reveal ? clue.correctIndex : -1
@@ -50,17 +58,33 @@ function sanitizeRoom(room: GameRoom, role: "host" | "player"): GameRoom {
   };
 }
 
-export function getRoom(roomId: string) {
+async function getRoomInternal(roomId: string): Promise<GameRoom | null> {
+  if (useRedis && redis) {
+    const room = await redis.get<GameRoom>(`${ROOM_PREFIX}${roomId}`);
+    return room ?? null;
+  }
   return rooms.get(roomId) || null;
 }
 
-export function createRoom(params: {
+async function setRoomInternal(room: GameRoom) {
+  if (useRedis && redis) {
+    await redis.set(`${ROOM_PREFIX}${room.id}`, room);
+    return;
+  }
+  rooms.set(room.id, room);
+}
+
+export async function getRoom(roomId: string) {
+  return getRoomInternal(roomId);
+}
+
+export async function createRoom(params: {
   hostId: string;
   title?: string;
   playerLimit: number;
   questionSetJson?: string;
   twistDefault: boolean;
-}): GameRoom {
+}): Promise<GameRoom> {
   let board: Category[];
   if (params.questionSetJson) {
     const parsed = JSON.parse(params.questionSetJson);
@@ -83,17 +107,18 @@ export function createRoom(params: {
     twistDefault: params.twistDefault
   };
 
-  rooms.set(room.id, room);
+  await setRoomInternal(room);
   return room;
 }
 
-export function joinRoom(roomId: string, name: string) {
-  const room = rooms.get(roomId);
+export async function joinRoom(roomId: string, name: string) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
 
   const existing = room.players.find((player) => player.name.toLowerCase() === name.toLowerCase());
   if (existing) {
     existing.connected = true;
+    await setRoomInternal(room);
     return existing;
   }
 
@@ -109,25 +134,28 @@ export function joinRoom(roomId: string, name: string) {
   };
 
   room.players.push(player);
+  await setRoomInternal(room);
   return player;
 }
 
-export function markPlayerDisconnected(roomId: string, playerId: string) {
-  const room = rooms.get(roomId);
+export async function markPlayerDisconnected(roomId: string, playerId: string) {
+  const room = await getRoomInternal(roomId);
   if (!room) return;
   const player = room.players.find((entry) => entry.id === playerId);
   if (player) player.connected = false;
+  await setRoomInternal(room);
 }
 
-export function startGame(roomId: string) {
-  const room = rooms.get(roomId);
+export async function startGame(roomId: string) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (room.status !== "lobby") return;
   room.status = "inProgress";
+  await setRoomInternal(room);
 }
 
-export function selectClue(roomId: string, clueId: string) {
-  const room = rooms.get(roomId);
+export async function selectClue(roomId: string, clueId: string) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (room.currentClue.phase !== "idle") {
     throw new Error("Finish the current clue first.");
@@ -143,18 +171,20 @@ export function selectClue(roomId: string, clueId: string) {
   };
   room.answers = {};
   room.results = {};
+  await setRoomInternal(room);
 }
 
-export function openAnswers(roomId: string) {
-  const room = rooms.get(roomId);
+export async function openAnswers(roomId: string) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (room.currentClue.phase !== "clue") throw new Error("Clue not revealed.");
   room.currentClue.phase = "open";
   room.currentClue.openedAt = Date.now();
+  await setRoomInternal(room);
 }
 
-export function submitAnswer(roomId: string, playerId: string, choiceIndex: number) {
-  const room = rooms.get(roomId);
+export async function submitAnswer(roomId: string, playerId: string, choiceIndex: number) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (room.currentClue.phase !== "open") throw new Error("Answers are not open.");
   const player = room.players.find((entry) => entry.id === playerId);
@@ -163,18 +193,20 @@ export function submitAnswer(roomId: string, playerId: string, choiceIndex: numb
     throw new Error("Invalid choice.");
   }
   room.answers[playerId] = choiceIndex;
+  await setRoomInternal(room);
 }
 
-export function lockAnswers(roomId: string) {
-  const room = rooms.get(roomId);
+export async function lockAnswers(roomId: string) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (room.currentClue.phase !== "open") throw new Error("Answers are not open.");
   room.currentClue.phase = "locked";
   room.currentClue.lockedAt = Date.now();
+  await setRoomInternal(room);
 }
 
-export function revealCorrect(roomId: string) {
-  const room = rooms.get(roomId);
+export async function revealCorrect(roomId: string) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (room.currentClue.phase !== "locked") throw new Error("Answers not locked.");
   const clueId = room.currentClue.clueId;
@@ -196,16 +228,18 @@ export function revealCorrect(roomId: string) {
   room.results = results;
   room.currentClue.phase = "revealed";
   room.currentClue.revealAt = Date.now();
+  await setRoomInternal(room);
 }
 
-export function toggleTwist(roomId: string, enabled: boolean) {
-  const room = rooms.get(roomId);
+export async function toggleTwist(roomId: string, enabled: boolean) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   room.currentClue.twistEnabled = enabled;
+  await setRoomInternal(room);
 }
 
-export function triggerTwist(roomId: string) {
-  const room = rooms.get(roomId);
+export async function triggerTwist(roomId: string) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (room.currentClue.phase !== "revealed") throw new Error("Reveal correct answer first.");
   if (!room.currentClue.twistEnabled) throw new Error("Twist disabled.");
@@ -213,12 +247,17 @@ export function triggerTwist(roomId: string) {
   const deadline = Date.now() + 10_000;
   room.currentClue.phase = "twist";
   room.currentClue.twistDeadline = deadline;
+  await setRoomInternal(room);
 
   startTwistCountdown(roomId, deadline);
 }
 
-export function submitTwistChoice(roomId: string, playerId: string, choice: "double" | "keep" | "risk" | "no-penalty") {
-  const room = rooms.get(roomId);
+export async function submitTwistChoice(
+  roomId: string,
+  playerId: string,
+  choice: "double" | "keep" | "risk" | "no-penalty"
+) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (room.currentClue.phase !== "twist") throw new Error("Twist not active.");
   if (room.currentClue.twistDeadline && Date.now() > room.currentClue.twistDeadline) {
@@ -245,10 +284,12 @@ export function submitTwistChoice(roomId: string, playerId: string, choice: "dou
     result.twistChoice = choice;
     result.twistDelta = choice === "risk" ? -clue.value : 0;
   }
+
+  await setRoomInternal(room);
 }
 
-export function finalizeClue(roomId: string) {
-  const room = rooms.get(roomId);
+export async function finalizeClue(roomId: string) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   if (!(room.currentClue.phase === "revealed" || room.currentClue.phase === "twist")) {
     throw new Error("Clue is not ready to finalize.");
@@ -269,25 +310,27 @@ export function finalizeClue(roomId: string) {
   room.currentClue = createEmptyCurrentClue();
   room.answers = {};
   room.results = {};
+  await setRoomInternal(room);
   clearCountdown(roomId);
 }
 
-export function endGame(roomId: string) {
-  const room = rooms.get(roomId);
+export async function endGame(roomId: string) {
+  const room = await getRoomInternal(roomId);
   if (!room) throw new Error("Room not found.");
   room.status = "finished";
   room.currentClue.phase = "final";
+  await setRoomInternal(room);
 }
 
-export function publishRoomState(roomId: string) {
-  const room = rooms.get(roomId);
+export async function publishRoomState(roomId: string) {
+  const room = await getRoomInternal(roomId);
   if (!room) return;
   const pusher = getPusherServer();
   const hostChannel = `room-${roomId}-host`;
   const playerChannel = `room-${roomId}-player`;
 
-  void pusher.trigger(hostChannel, "room:state", room);
-  void pusher.trigger(playerChannel, "room:state", sanitizeRoom(room, "player"));
+  await pusher.trigger(hostChannel, "room:state", room);
+  await pusher.trigger(playerChannel, "room:state", sanitizeRoom(room, "player"));
 }
 
 export function publishCountdown(roomId: string, secondsLeft: number) {
@@ -315,8 +358,8 @@ function clearCountdown(roomId: string) {
   countdownTimers.delete(roomId);
 }
 
-export function getRoomStateForRole(roomId: string, role: "host" | "player") {
-  const room = rooms.get(roomId);
+export async function getRoomStateForRole(roomId: string, role: "host" | "player") {
+  const room = await getRoomInternal(roomId);
   if (!room) return null;
   return sanitizeRoom(room, role);
 }

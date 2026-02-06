@@ -11,8 +11,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ roo
       return NextResponse.json({ error: "Name is required." }, { status: 400 });
     }
 
-    const player = joinRoom(roomId, name);
-    publishRoomState(roomId);
+    const player = await joinRoom(roomId, name);
+    await publishRoomState(roomId);
 
     return NextResponse.json({ playerId: player.id, name: player.name });
   } catch (error: unknown) {

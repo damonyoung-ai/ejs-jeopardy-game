@@ -28,6 +28,7 @@ Open `http://localhost:3000`.
 1. Push this repo to GitHub.
 2. Import it into Vercel.
 3. Add the environment variables from `.env.example`.
+4. Add Upstash Redis credentials (required for multiplayer on serverless).
 4. Deploy.
 
 ## How to Host a Game
@@ -74,3 +75,8 @@ After reveal, the host can trigger Double or Nothing for 10 seconds:
 
 ## Notes on Realtime
 Socket.IO requires long-lived WebSocket connections which are unreliable in Vercel serverless functions. This app uses Pusher for production-safe realtime while keeping the server authoritative and the game state in memory. You can swap the in-memory store for Redis later using `lib/roomStore.ts`.
+
+## Notes on Serverless State
+Vercel serverless functions are stateless across requests, so in-memory rooms will be lost between requests. Use Upstash Redis for production persistence:
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`

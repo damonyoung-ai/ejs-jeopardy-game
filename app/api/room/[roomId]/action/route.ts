@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ roo
     const roomId = rawRoomId.toUpperCase();
     const body = await req.json();
     const action = String(body?.action || "");
-    const room = getRoom(roomId);
+    const room = await getRoom(roomId);
     if (!room) {
       return NextResponse.json({ error: "Room not found." }, { status: 404 });
     }
@@ -48,49 +48,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ roo
 
     switch (action) {
       case "host:startGame":
-        startGame(roomId);
+        await startGame(roomId);
         break;
       case "host:selectClue":
-        selectClue(roomId, String(body?.clueId || ""));
+        await selectClue(roomId, String(body?.clueId || ""));
         break;
       case "host:openAnswers":
-        openAnswers(roomId);
+        await openAnswers(roomId);
         break;
       case "host:lockAnswers":
-        lockAnswers(roomId);
+        await lockAnswers(roomId);
         break;
       case "host:revealCorrect":
-        revealCorrect(roomId);
+        await revealCorrect(roomId);
         break;
       case "host:toggleTwistForClue":
-        toggleTwist(roomId, Boolean(body?.enabled));
+        await toggleTwist(roomId, Boolean(body?.enabled));
         break;
       case "host:triggerTwist":
-        triggerTwist(roomId);
+        await triggerTwist(roomId);
         break;
       case "host:finalizeClue":
-        finalizeClue(roomId);
+        await finalizeClue(roomId);
         break;
       case "host:endGame":
-        endGame(roomId);
+        await endGame(roomId);
         break;
       case "player:submitAnswer":
-        submitAnswer(roomId, String(body?.playerId || ""), Number(body?.choiceIndex));
+        await submitAnswer(roomId, String(body?.playerId || ""), Number(body?.choiceIndex));
         break;
       case "player:submitTwistChoice":
         if (!["double", "keep", "risk", "no-penalty"].includes(body?.choice)) {
           return NextResponse.json({ error: "Invalid twist choice." }, { status: 400 });
         }
-        submitTwistChoice(roomId, String(body?.playerId || ""), body?.choice);
+        await submitTwistChoice(roomId, String(body?.playerId || ""), body?.choice);
         break;
       case "player:leave":
-        markPlayerDisconnected(roomId, String(body?.playerId || ""));
+        await markPlayerDisconnected(roomId, String(body?.playerId || ""));
         break;
       default:
         return NextResponse.json({ error: "Unknown action." }, { status: 400 });
     }
 
-    publishRoomState(roomId);
+    await publishRoomState(roomId);
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unable to process action.";

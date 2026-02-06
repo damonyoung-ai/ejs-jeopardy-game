@@ -8,7 +8,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ room
   const roomId = rawRoomId.toUpperCase();
   const { searchParams } = new URL(req.url);
   const role = searchParams.get("role") === "host" ? "host" : "player";
-  const state = getRoomStateForRole(roomId, role);
+  const state = await getRoomStateForRole(roomId, role);
   if (!state) {
     return NextResponse.json({ error: "Room not found." }, { status: 404 });
   }

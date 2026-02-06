@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const questionSetJson = body?.questionSetJson ? String(body.questionSetJson) : undefined;
     const twistDefault = Boolean(body?.twistDefault ?? true);
 
-    const room = createRoom({
+    const room = await createRoom({
       hostId,
       title,
       playerLimit,
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       twistDefault
     });
 
-    publishRoomState(room.id);
+    await publishRoomState(room.id);
 
     return NextResponse.json({ roomId: room.id, hostId });
   } catch (error: unknown) {
