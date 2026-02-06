@@ -199,9 +199,7 @@ export default function HostRoomPage() {
           </div>
           <div className="space-y-4">
             <Scoreboard players={room.players} />
-            <button className="btn-secondary w-full" onClick={() => handleAction("host:endGame")}
-              disabled={room.status === "finished"}
-            >
+            <button className="btn-secondary w-full" onClick={() => handleAction("host:endGame")}>
               End Game
             </button>
             {actionError && <p className="text-red-300 text-sm">{actionError}</p>}
