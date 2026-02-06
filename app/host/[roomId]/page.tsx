@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import QRCode from "qrcode";
 import { BoardGrid } from "@/components/BoardGrid";
@@ -27,6 +27,8 @@ export default function HostRoomPage() {
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [joinUrl, setJoinUrl] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const autoFinalizeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAutoFinalizeKey = useRef<string | null>(null);
   const hostId = useMemo(() => {
     if (typeof window === "undefined") return null;
     return localStorage.getItem(`jeopardy-host-${roomId}`);
@@ -39,6 +41,36 @@ export default function HostRoomPage() {
     setJoinUrl(newJoinUrl);
     QRCode.toDataURL(newJoinUrl).then(setQrUrl).catch(() => setQrUrl(null));
   }, [roomId]);
+
+  useEffect(() => {
+    if (!room || !hostId) return;
+    if (!room.autoFinalizeClue) return;
+    if (!(room.currentClue.phase === "revealed" || room.currentClue.phase === "twist")) return;
+    if (!room.currentClue.clueId) return;
+
+    const key = `${room.currentClue.clueId}:${room.currentClue.phase}:${room.currentClue.twistDeadline ?? ""}`;
+    if (lastAutoFinalizeKey.current === key) return;
+    lastAutoFinalizeKey.current = key;
+
+    if (autoFinalizeTimer.current) clearTimeout(autoFinalizeTimer.current);
+
+    const now = Date.now();
+    const delay =
+      room.currentClue.phase === "twist" && room.currentClue.twistDeadline
+        ? Math.max(0, room.currentClue.twistDeadline - now) + 500
+        : 1500;
+
+    autoFinalizeTimer.current = setTimeout(async () => {
+      try {
+        await sendAction(roomId, "host:finalizeClue", { hostId });
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "Action failed.");
+      }
+    }, delay);
+    return () => {
+      if (autoFinalizeTimer.current) clearTimeout(autoFinalizeTimer.current);
+    };
+  }, [room, hostId, roomId]);
 
   async function handleAction(action: string, payload: Record<string, unknown> = {}) {
     if (!hostId) return;
