@@ -489,6 +489,21 @@ export async function finalizeClue(roomId: string) {
     room.results = await getResults(roomId, clueId);
   }
 
+  if (Object.keys(room.results).length === 0) {
+    const answers = useRedis && redis ? await getAnswers(roomId, clueId) : room.answers;
+    const fallbackResults: ResultsMap = {};
+    room.players.forEach((player) => {
+      const answer = answers[player.id];
+      const correct = answer === clue.correctIndex;
+      const delta = correct ? clue.value : 0;
+      fallbackResults[player.id] = { correct, delta };
+    });
+    room.results = fallbackResults;
+    if (useRedis && redis) {
+      await setResults(roomId, clueId, room.results);
+    }
+  }
+
   const scores = useRedis && redis ? await getScores(roomId) : {};
 
   Object.entries(room.results).forEach(([playerId, result]) => {
