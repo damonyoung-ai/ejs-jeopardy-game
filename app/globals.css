@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: only light;
+}
+
+body {
+  background: radial-gradient(circle at top, #0e3b8c 0%, #071a3b 45%, #040b1f 100%);
+}
+
+.jeopardy-panel {
+  @apply bg-jeopardyBlue/90 border border-jeopardyGold/30 shadow-glow;
+}
+
+.board-tile {
+  @apply flex items-center justify-center text-jeopardyGold font-display text-3xl sm:text-4xl md:text-5xl h-20 sm:h-24 md:h-28 rounded-lg border border-jeopardyGold/40 bg-panelBlue/90 transition-all duration-300;
+}
+
+.board-tile.used {
+  @apply bg-jeopardyBlue/40 text-white/20 border-white/10;
+}
+
+.btn-primary {
+  @apply px-4 py-2 rounded-md bg-jeopardyGold text-deepBlue font-semibold hover:brightness-110 transition;
+}
+
+.btn-secondary {
+  @apply px-4 py-2 rounded-md border border-jeopardyGold/60 text-jeopardyGold hover:bg-jeopardyGold/10 transition;
+}
+
+.input {
+  @apply w-full rounded-md bg-white/10 border border-white/20 px-3 py-2 text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-jeopardyGold/70;
+}
+
+.card {
+  @apply rounded-xl border border-white/10 bg-white/5 p-6 backdrop-blur;
+}

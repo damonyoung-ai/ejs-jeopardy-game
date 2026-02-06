@@ -1,0 +1,64 @@
+{
+  "categories": [
+    {
+      "title": "Science",
+      "clues": [
+        {"value": 200, "question": "This planet is known as the Red Planet.", "choices": ["Earth", "Mars", "Jupiter", "Venus"], "correctIndex": 1},
+        {"value": 400, "question": "H2O is the chemical formula for this.", "choices": ["Salt", "Oxygen", "Water", "Hydrogen"], "correctIndex": 2},
+        {"value": 600, "question": "The process plants use to make food is called.", "choices": ["Respiration", "Photosynthesis", "Fermentation", "Transpiration"], "correctIndex": 1},
+        {"value": 800, "question": "The force that keeps us on the ground.", "choices": ["Magnetism", "Friction", "Gravity", "Inertia"], "correctIndex": 2},
+        {"value": 1000, "question": "This particle has a negative electric charge.", "choices": ["Proton", "Electron", "Neutron", "Photon"], "correctIndex": 1}
+      ]
+    },
+    {
+      "title": "History",
+      "clues": [
+        {"value": 200, "question": "He was the first President of the United States.", "choices": ["Thomas Jefferson", "George Washington", "John Adams", "James Madison"], "correctIndex": 1},
+        {"value": 400, "question": "The Great Wall is in this country.", "choices": ["India", "China", "Japan", "Korea"], "correctIndex": 1},
+        {"value": 600, "question": "World War II ended in this year.", "choices": ["1945", "1939", "1918", "1955"], "correctIndex": 0},
+        {"value": 800, "question": "This city was the heart of the Roman Empire.", "choices": ["Athens", "Rome", "Paris", "Carthage"], "correctIndex": 1},
+        {"value": 1000, "question": "The Renaissance began in this country.", "choices": ["France", "Italy", "England", "Spain"], "correctIndex": 1}
+      ]
+    },
+    {
+      "title": "Movies",
+      "clues": [
+        {"value": 200, "question": "\"May the Force be with you\" is from this franchise.", "choices": ["Star Wars", "Star Trek", "Matrix", "Avatar"], "correctIndex": 0},
+        {"value": 400, "question": "He played Iron Man in the MCU.", "choices": ["Chris Evans", "Robert Downey Jr.", "Chris Hemsworth", "Mark Ruffalo"], "correctIndex": 1},
+        {"value": 600, "question": "The wizarding school in Harry Potter.", "choices": ["Hogwarts", "Ilvermorny", "Durmstrang", "Beauxbatons"], "correctIndex": 0},
+        {"value": 800, "question": "\"Here's looking at you, kid\" is from this film.", "choices": ["Casablanca", "Psycho", "Jaws", "Rocky"], "correctIndex": 0},
+        {"value": 1000, "question": "This 1993 film featured dinosaurs brought back to life.", "choices": ["Jurassic Park", "E.T.", "Titanic", "Aliens"], "correctIndex": 0}
+      ]
+    },
+    {
+      "title": "Sports",
+      "clues": [
+        {"value": 200, "question": "This sport uses a puck.", "choices": ["Baseball", "Hockey", "Soccer", "Tennis"], "correctIndex": 1},
+        {"value": 400, "question": "The Super Bowl is the championship of this league.", "choices": ["MLB", "NBA", "NFL", "NHL"], "correctIndex": 2},
+        {"value": 600, "question": "This tennis tournament is played on grass in London.", "choices": ["US Open", "Australian Open", "French Open", "Wimbledon"], "correctIndex": 3},
+        {"value": 800, "question": "The Olympics are held every this many years.", "choices": ["2", "3", "4", "5"], "correctIndex": 2},
+        {"value": 1000, "question": "This country won the 2014 FIFA World Cup.", "choices": ["Brazil", "Germany", "Spain", "Argentina"], "correctIndex": 1}
+      ]
+    },
+    {
+      "title": "Geography",
+      "clues": [
+        {"value": 200, "question": "This is the largest ocean on Earth.", "choices": ["Atlantic", "Indian", "Arctic", "Pacific"], "correctIndex": 3},
+        {"value": 400, "question": "Mount Everest is in this mountain range.", "choices": ["Andes", "Alps", "Himalayas", "Rockies"], "correctIndex": 2},
+        {"value": 600, "question": "The Nile River flows into this sea.", "choices": ["Red Sea", "Mediterranean Sea", "Black Sea", "Caspian Sea"], "correctIndex": 1},
+        {"value": 800, "question": "This U.S. state is known as the Sunshine State.", "choices": ["California", "Florida", "Arizona", "Texas"], "correctIndex": 1},
+        {"value": 1000, "question": "The capital of Australia.", "choices": ["Sydney", "Melbourne", "Canberra", "Perth"], "correctIndex": 2}
+      ]
+    },
+    {
+      "title": "Music",
+      "clues": [
+        {"value": 200, "question": "This instrument has 88 keys.", "choices": ["Guitar", "Piano", "Violin", "Trumpet"], "correctIndex": 1},
+        {"value": 400, "question": "The musical symbol for silence.", "choices": ["Sharp", "Flat", "Rest", "Clef"], "correctIndex": 2},
+        {"value": 600, "question": "\"Bohemian Rhapsody\" was recorded by this band.", "choices": ["Queen", "The Beatles", "U2", "Nirvana"], "correctIndex": 0},
+        {"value": 800, "question": "This genre is known for improvisation.", "choices": ["Classical", "Jazz", "Country", "Pop"], "correctIndex": 1},
+        {"value": 1000, "question": "The highest female singing voice.", "choices": ["Alto", "Tenor", "Soprano", "Baritone"], "correctIndex": 2}
+      ]
+    }
+  ]
+}
